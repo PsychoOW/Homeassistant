@@ -1,0 +1,117 @@
+substitutions:
+  name: tuer-sensor
+  friendly_name: Tür Sensor
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2024.6.0
+  name_add_mac_suffix: false
+  project:
+    name: esphome.web
+    version: dev
+
+esp8266:
+  board: d1_mini
+
+# Enable logging
+logger:
+  level: DEBUG
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: 
+
+wifi:
+  ssid: 
+  password: 
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: ""
+    password: ""
+
+captive_portal:
+    
+ota:
+- platform: esphome
+  password: ""
+#  safe_mode: true
+#  reboot_timeout: 10min
+#  num_attempts: 5
+
+improv_serial:
+
+#web_server:
+#  port: 80
+#  auth:
+#    username: 
+#    password: 
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: D2
+      mode:
+        input: true
+        pullup: true
+    name: "Eingangstür"
+    device_class: door
+    filters:
+      - delayed_on: 10ms
+      - delayed_off: 10ms
+    disabled_by_default: false
+
+output:
+  - platform: esp8266_pwm
+    pin: D1
+    id: buzzer_output
+
+
+
+rtttl:
+  output: buzzer_output
+
+switch:
+  - platform: template
+    name: "Buzzer Mission Imp"
+    turn_on_action:
+    - rtttl.play: 'MissionImp:d=16,o=6,b=95:32d,32d#,32d,32d#,32d,32d#,32d,32d#,32d,32d,32d#,32e,32f,32f#,32g,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,a#,g,2d,32p,a#,g,2c#,32p,a#,g,2c,a#5,8c,2p,32p,a#5,g5,2f#,32p,a#5,g5,2f,32p,a#5,g5,2e,d#,8d'
+    turn_off_action:
+    - rtttl.stop
+
+  - platform: template
+    name: "Buzzer Siren"
+    turn_on_action:
+    - rtttl.play: 'siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e'
+    turn_off_action:
+    - rtttl.stop
+
+  - platform: template
+    name: "Buzzer Alarm"
+    turn_on_action:
+    - rtttl.play: 'alarm:5:d=4,o=5,b=160:2g,2c6,2g,2c6,2g,2c6,2g,2c6'
+    turn_off_action:
+    - rtttl.stop
+
+  - platform: template
+    name: "Buzzer Pager"
+    turn_on_action:
+    - rtttl.play: 'pager:5:d=4,o=5,b=160:8d6,16p,2d6,16p,8d6,16p,2d6,16p,8d6,16p,2d6'
+    turn_off_action:
+    - rtttl.stop
+
+  - platform: template
+    name: "Buzzer XFiles"
+    turn_on_action:
+    - rtttl.play: 'Xfiles:d=4,o=5,b=125:e,b,a,b,d6,2b.,1p,e,b,a,b,e6,2b.,1p,g6,f#6,e6,d6,e6,2b.,1p,g6,f#6,e6,d6,f#6,2b.,1p,e,b,a,b,d6,2b.,1p,e,b,a,b,e6,2b.,1p,e6,2b.'
+    turn_off_action:
+    - rtttl.stop
+
+  - platform: template
+    name: "Buzzer Halloween"
+    turn_on_action:
+    - rtttl.play: 'Halloween:d=4,o=5,b=180:8d6,8g,8g,8d6,8g,8g,8d6,8g,8d#6,8g,8d6,8g,8g,8d6,8g,8g,8d6,8g,8d#6,8g,8c#6,8f#,8f#,8c#6,8f#,8f#,8c#6,8f#,8d6,8f#,8c#6,8f#,8f#,8c#6,8f#,8f#,8c#6,8f#,8d6,8f#'
+    turn_off_action:
+    - rtttl.stop
