@@ -43,11 +43,11 @@ ota:
 
 improv_serial:
 
-#web_server:
-#  port: 80
-#  auth:
-#    username: 
-#    password: 
+web_server:
+  port: 80
+  auth:
+    username: 
+    password: 
 
 binary_sensor:
   - platform: gpio
@@ -63,17 +63,64 @@ binary_sensor:
       - delayed_off: 10ms
     disabled_by_default: false
 
+  - platform: gpio
+    name: "Alarm Button"
+    pin:
+      number: D4
+      mode:
+        input: true
+        pullup: true  # Interner Pull-up-Widerstand aktiviert
+      inverted: true
+    filters:
+      - delayed_on: 10ms  # Entprellung
+      - delayed_off: 10ms
+    on_click:
+      min_length: 50ms
+      max_length: 350ms
+      then:
+        - delay: 400ms  # Wartezeit, um Doppelklick auszuschließen
+        - if:
+            condition:
+              binary_sensor.is_off: double_click_flag
+            then:
+              - logger.log: "singleclick recognized / Einfachklick erkannt"
+              - homeassistant.event:
+                  event: esphome.alarm_button
+                  data:
+                    type: single
+
+    on_double_click:
+      min_length: 50ms
+      max_length: 350ms
+      then:
+        - binary_sensor.template.publish:
+            id: double_click_flag
+            state: ON
+        - logger.log: "Doubleclick recognized / Doppelklick erkannt"
+        - homeassistant.event:
+            event: esphome.alarm_button
+            data:
+              type: double
+        - delay: 500ms  # Reset der Flag
+        - binary_sensor.template.publish:
+            id: double_click_flag
+            state: OFF
+
+  - platform: template
+    name: "Double Click Flag"
+    id: double_click_flag
+    internal: true
+              
 output:
   - platform: esp8266_pwm
     pin: D1
     id: buzzer_output
 
-
-
 rtttl:
   output: buzzer_output
 
 switch:
+#Beeper
   - platform: template
     name: "Buzzer Mission Imp"
     turn_on_action:
