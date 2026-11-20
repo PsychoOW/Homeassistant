@@ -21,33 +21,33 @@ logger:
 # Enable Home Assistant API
 api:
   encryption:
-    key: 
+    key: ""
 
 wifi:
-  ssid: 
-  password: 
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  min_auth_mode: 'WPA2'
+  # Enable fallback hotspot (captive portal) in case wifi connection fails , remove # to activate
+#  ap:
+#    ssid: "Tur-Sensor Fallback Hotspot"
+#    password: "5hNPNwPcn3Ip"
 
-  # Enable fallback hotspot (captive portal) in case wifi connection fails
-  ap:
-    ssid: ""
-    password: ""
-
-captive_portal:
+#captive_portal:
     
 ota:
-- platform: esphome
-  password: ""
+  - platform: esphome
+    encryption:
 #  safe_mode: true
 #  reboot_timeout: 10min
 #  num_attempts: 5
 
 improv_serial:
 
-web_server:
-  port: 80
-  auth:
-    username: 
-    password: 
+#web_server:
+#  port: 80
+#  auth:
+#    username: !secret esphome_web_username
+#    password: !secret esphome_web_password
 
 binary_sensor:
   - platform: gpio
@@ -59,8 +59,8 @@ binary_sensor:
     name: "Eingangstür"
     device_class: door
     filters:
-      - delayed_on: 10ms
-      - delayed_off: 10ms
+      - delayed_on: 50ms
+      - delayed_off: 50ms
     disabled_by_default: false
 
   - platform: gpio
@@ -69,48 +69,37 @@ binary_sensor:
       number: D4
       mode:
         input: true
-        pullup: true  # Interner Pull-up-Widerstand aktiviert
+        pullup: true
       inverted: true
+
     filters:
-      - delayed_on: 10ms  # Entprellung
-      - delayed_off: 10ms
-    on_click:
-      min_length: 50ms
-      max_length: 350ms
-      then:
-        - delay: 400ms  # Wartezeit, um Doppelklick auszuschließen
-        - if:
-            condition:
-              binary_sensor.is_off: double_click_flag
-            then:
-              - logger.log: "singleclick recognized / Einfachklick erkannt"
-              - homeassistant.event:
-                  event: esphome.alarm_button
-                  data:
-                    type: single
+      - delayed_on_off: 10ms
 
-    on_double_click:
-      min_length: 50ms
-      max_length: 350ms
-      then:
-        - binary_sensor.template.publish:
-            id: double_click_flag
-            state: ON
-        - logger.log: "Doubleclick recognized / Doppelklick erkannt"
-        - homeassistant.event:
-            event: esphome.alarm_button
-            data:
-              type: double
-        - delay: 500ms  # Reset der Flag
-        - binary_sensor.template.publish:
-            id: double_click_flag
-            state: OFF
+    on_multi_click:
 
-  - platform: template
-    name: "Double Click Flag"
-    id: double_click_flag
-    internal: true
-              
+      # Einfachklick
+      - timing:
+          - ON for 50ms to 350ms
+          - OFF for at least 400ms
+        then:
+          - logger.log: "Einfachklick erkannt"
+          - homeassistant.event:
+              event: esphome.alarm_button
+              data:
+                type: single
+
+      # Doppelklick
+      - timing:
+          - ON for 50ms to 350ms
+          - OFF for 50ms to 350ms
+          - ON for 50ms to 350ms
+        then:
+          - logger.log: "Doppelklick erkannt"
+          - homeassistant.event:
+              event: esphome.alarm_button
+              data:
+                type: double
+
 output:
   - platform: esp8266_pwm
     pin: D1
@@ -120,45 +109,151 @@ rtttl:
   output: buzzer_output
 
 switch:
-#Beeper
+  - platform: template
+    name: "Sirene"
+    id: siren_beep
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    turn_on_action:
+      - rtttl.stop
+      - script.execute: siren_loop
+    turn_off_action:
+      - script.stop: siren_loop
+      - output.set_level:
+          id: buzzer_output
+          level: 0%
+
+button:
+  # Button für Einfachklick
+  - platform: template
+    name: "Alarm Einfachklick"
+    on_press:
+      - logger.log: "Einfachklick (manuell)"
+      - homeassistant.event:
+          event: esphome.alarm_button
+          data:
+            type: single
+
+  # Button für Doppelklick
+  - platform: template
+    name: "Alarm Doppelklick"
+    on_press:
+      - logger.log: "Doppelklick (manuell)"
+      - homeassistant.event:
+          event: esphome.alarm_button
+          data:
+            type: double
+
+  # Beeper
   - platform: template
     name: "Buzzer Mission Imp"
-    turn_on_action:
-    - rtttl.play: 'MissionImp:d=16,o=6,b=95:32d,32d#,32d,32d#,32d,32d#,32d,32d#,32d,32d,32d#,32e,32f,32f#,32g,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,a#,g,2d,32p,a#,g,2c#,32p,a#,g,2c,a#5,8c,2p,32p,a#5,g5,2f#,32p,a#5,g5,2f,32p,a#5,g5,2e,d#,8d'
-    turn_off_action:
-    - rtttl.stop
+    on_press:
+      - rtttl.play: 'MissionImp:d=16,o=6,b=95:32d,32d#,32d,32d#,32d,32d#,32d,32d#,32d,32d,32d#,32e,32f,32f#,32g,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,g,8p,g,8p,a#,p,c7,p,g,8p,g,8p,f,p,f#,p,a#,g,2d,32p,a#,g,2c#,32p,a#,g,2c,a#5,8c,2p,32p,a#5,g5,2f#,32p,a#5,g5,2f,32p,a#5,g5,2e,d#,8d'
 
   - platform: template
     name: "Buzzer Siren"
-    turn_on_action:
-    - rtttl.play: 'siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e'
-    turn_off_action:
-    - rtttl.stop
+    on_press:
+      - rtttl.play: 'siren:d=8,o=5,b=100:d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e,d,e'
 
   - platform: template
     name: "Buzzer Alarm"
-    turn_on_action:
-    - rtttl.play: 'alarm:5:d=4,o=5,b=160:2g,2c6,2g,2c6,2g,2c6,2g,2c6'
-    turn_off_action:
-    - rtttl.stop
+    on_press:
+      - rtttl.play: 'alarm:d=4,o=5,b=160:2g,2c6,2g,2c6,2g,2c6,2g,2c6'
 
   - platform: template
     name: "Buzzer Pager"
-    turn_on_action:
-    - rtttl.play: 'pager:5:d=4,o=5,b=160:8d6,16p,2d6,16p,8d6,16p,2d6,16p,8d6,16p,2d6'
-    turn_off_action:
-    - rtttl.stop
+    on_press:
+      - rtttl.play: 'pager:d=4,o=5,b=160:8d6,16p,2d6,16p,8d6,16p,2d6,16p,8d6,16p,2d6'
 
   - platform: template
     name: "Buzzer XFiles"
-    turn_on_action:
-    - rtttl.play: 'Xfiles:d=4,o=5,b=125:e,b,a,b,d6,2b.,1p,e,b,a,b,e6,2b.,1p,g6,f#6,e6,d6,e6,2b.,1p,g6,f#6,e6,d6,f#6,2b.,1p,e,b,a,b,d6,2b.,1p,e,b,a,b,e6,2b.,1p,e6,2b.'
-    turn_off_action:
-    - rtttl.stop
+    on_press:
+      - rtttl.play: 'Xfiles:d=4,o=5,b=125:e,b,a,b,d6,2b.,1p,e,b,a,b,e6,2b.,1p,g6,f#6,e6,d6,e6,2b.,1p,g6,f#6,e6,d6,f#6,2b.,1p,e,b,a,b,d6,2b.,1p,e,b,a,b,e6,2b.,1p,e6,2b.'
 
   - platform: template
     name: "Buzzer Halloween"
-    turn_on_action:
-    - rtttl.play: 'Halloween:d=4,o=5,b=180:8d6,8g,8g,8d6,8g,8g,8d6,8g,8d#6,8g,8d6,8g,8g,8d6,8g,8g,8d6,8g,8d#6,8g,8c#6,8f#,8f#,8c#6,8f#,8f#,8c#6,8f#,8d6,8f#,8c#6,8f#,8f#,8c#6,8f#,8f#,8c#6,8f#,8d6,8f#'
-    turn_off_action:
-    - rtttl.stop
+    on_press:
+      - rtttl.play: 'Halloween:d=4,o=5,b=180:8d6,8g,8g,8d6,8g,8g,8d6,8g,8d#6,8g,8d6,8g,8g,8d6,8g,8g,8d6,8g,8d#6,8g,8c#6,8f#,8f#,8c#6,8f#,8f#,8c#6,8f#,8d6,8f#,8c#6,8f#,8f#,8c#6,8f#,8f#,8c#6,8f#,8d6,8f#'
+
+#Test button to figure out if a buzzer is active or passive , passive buzzer can create different sounds. in other words, if the buzzer makes different sounds its passiv, if not then active
+  - platform: template
+    name: "Buzzer Typ testen"
+    icon: mdi:volume-high
+    on_press:
+      then:
+        # Laufende Sounds stoppen
+        - script.stop: siren_loop
+        - rtttl.stop
+        - output.set_level:
+            id: buzzer_output
+            level: 0%
+        - delay: 500ms
+
+        # TEST 1: Gleichspannung mit 3,3V
+        - logger.log: "BUZZER TEST: DC 3.3V"
+        - output.set_level:
+            id: buzzer_output
+            level: 100%
+        - delay: 1500ms
+        - output.set_level:
+            id: buzzer_output
+            level: 0%
+        - delay: 1000ms
+
+        # TEST 2: PWM 500 Hz
+        - logger.log: "BUZZER TEST: 500 Hz"
+        - output.esp8266_pwm.set_frequency:
+            id: buzzer_output
+            frequency: 500Hz
+        - output.set_level:
+            id: buzzer_output
+            level: 50%
+        - delay: 1200ms
+
+        # TEST 3: PWM 1000 Hz
+        - logger.log: "BUZZER TEST: 1000 Hz"
+        - output.esp8266_pwm.set_frequency:
+            id: buzzer_output
+            frequency: 1000Hz
+        - delay: 1200ms
+
+        # TEST 4: PWM 2000 Hz
+        - logger.log: "BUZZER TEST: 2000 Hz"
+        - output.esp8266_pwm.set_frequency:
+            id: buzzer_output
+            frequency: 2000Hz
+        - delay: 1200ms
+
+        # TEST 5: PWM 3000 Hz
+        - logger.log: "BUZZER TEST: 3000 Hz"
+        - output.esp8266_pwm.set_frequency:
+            id: buzzer_output
+            frequency: 3000Hz
+        - delay: 1200ms
+
+        # Beenden
+        - output.set_level:
+            id: buzzer_output
+            level: 0%
+        - logger.log: "BUZZER TEST BEENDET"
+
+
+script:
+  - id: siren_loop
+    mode: single
+    then:
+      - while:
+          condition:
+            lambda: 'return true;'
+          then:
+            - output.esp8266_pwm.set_frequency:
+                id: buzzer_output
+                frequency: 2200Hz
+            - output.set_level:
+                id: buzzer_output
+                level: 50%
+            - delay: 200ms
+            - output.set_level:
+                id: buzzer_output
+                level: 0%
+            - delay: 300ms
